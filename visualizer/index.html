@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Cognitive Lab - Visualizer v0</title>
+<style>
+body {
+    margin: 0;
+    font-family: Arial;
+    background: #0f0f0f;
+    color: white;
+}
+
+#core {
+    text-align: center;
+    margin-top: 40px;
+    font-size: 22px;
+    color: #00ffcc;
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    margin-top: 60px;
+    gap: 20px;
+}
+
+.cell {
+    width: 160px;
+    height: 160px;
+    background: #1c1c1c;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 10px;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.cell:hover {
+    transform: scale(1.05);
+    border-color: #00ffcc;
+}
+
+.title {
+    color: #00ffcc;
+    font-weight: bold;
+}
+
+.small {
+    font-size: 12px;
+    margin-top: 10px;
+    color: #aaa;
+}
+
+#output {
+    margin-top: 50px;
+    text-align: center;
+    color: #ffcc00;
+}
+</style>
+</head>
+<body>
+
+<div id="core">CORE: Cognitive Router</div>
+
+<div class="container">
+
+<div class="cell" onclick="activate('Memory')">
+<div class="title">Memory Cell</div>
+<div class="small">Concepts: 12<br>Cache: 4KB</div>
+</div>
+
+<div class="cell" onclick="activate('Logic')">
+<div class="title">Logic Cell</div>
+<div class="small">Rules: 8<br>Confidence: 0.73</div>
+</div>
+
+<div class="cell" onclick="activate('Compression')">
+<div class="title">Compression Cell</div>
+<div class="small">Graphs: 5<br>Efficiency: 81%</div>
+</div>
+
+</div>
+
+<div id="output">Click a Cell to activate Cognitive Field</div>
+
+<script>
+function activate(cell) {
+    const output = document.getElementById("output");
+
+    if (cell === "Memory") {
+        output.innerHTML = `
+        <b>Memory Cell Activated</b><br><br>
+        Concepts loaded:<br>
+        - Sandbox<br>
+        - Bubble<br>
+        - Graph<br>
+        - Cache<br><br>
+        Field Type: Local Storage
+        `;
+    }
+
+    if (cell === "Logic") {
+        output.innerHTML = `
+        <b>Logic Cell Activated</b><br><br>
+        Rules loaded:<br>
+        - IF concept overlaps → merge<br>
+        - IF conflict → mark<br>
+        - IF low confidence → expand field<br><br>
+        Field Type: Reasoning Layer
+        `;
+    }
+
+    if (cell === "Compression") {
+        output.innerHTML = `
+        <b>Compression Cell Activated</b><br><br>
+        Active compression strategies:<br>
+        - Concept merging<br>
+        - Graph pruning<br>
+        - Cache reuse<br><br>
+        Efficiency gain simulated: +32%
+        `;
+    }
+}
+</script>
+
+</body>
+</html>

@@ -113,26 +113,28 @@ const cells = {
     Compression: { activation: 0, connections: ["Memory"] }
 };
 
-// 👉 SEMANTIC GRAPH (новый слой)
+// 🧠 SEMANTIC MAP
 const conceptMap = {
-    "memory": ["Memory"],
-    "remember": ["Memory"],
+    memory: ["Memory"],
+    remember: ["Memory"],
 
-    "logic": ["Logic"],
-    "reason": ["Logic"],
-    "think": ["Logic"],
+    logic: ["Logic"],
+    reason: ["Logic"],
+    think: ["Logic"],
 
-    "compress": ["Compression"],
-    "optimize": ["Compression"],
+    compress: ["Compression"],
+    optimize: ["Compression"],
 
-    // 🔥 новая семантика
-    "cryptography": ["Logic", "Memory"],
-    "encryption": ["Logic"],
-    "security": ["Logic", "Compression"],
-    "key": ["Memory", "Logic"],
-    "data": ["Memory", "Compression"]
+    cryptography: ["Logic", "Memory"],
+    encryption: ["Logic"],
+    security: ["Logic", "Compression"],
+    key: ["Memory", "Logic"]
 };
 
+// 🧠 EXPERIENCE MEMORY (НОВАЯ ЧАСТЬ)
+let experienceLog = [];
+
+// reset activation
 function reset() {
     for (let c in cells) {
         cells[c].activation = 0;
@@ -153,34 +155,69 @@ function spreadActivation(node, intensity) {
     });
 }
 
-// 👉 SEMANTIC ROUTER
+// 🧠 LEARNING ENGINE
+function learn(concepts) {
+    // если меньше 2 концептов — нечего учить
+    if (concepts.length < 2) return;
+
+    for (let i = 0; i < concepts.length; i++) {
+        for (let j = i + 1; j < concepts.length; j++) {
+
+            const a = concepts[i];
+            const b = concepts[j];
+
+            // создаём или усиливаем связь A → B
+            if (!cells[a].connections.includes(b)) {
+                cells[a].connections.push(b);
+            }
+
+            if (!cells[b].connections.includes(a)) {
+                cells[b].connections.push(a);
+            }
+        }
+    }
+}
+
+// 🧠 ROUTER + LEARNING
 function runRouter() {
     const text = document.getElementById("query").value.toLowerCase();
+
     reset();
 
     let activated = new Set();
 
-    // 1. ищем концепты
+    // 1. semantic matching
     for (let key in conceptMap) {
         if (text.includes(key)) {
             conceptMap[key].forEach(c => activated.add(c));
         }
     }
 
-    // 2. если ничего не найдено
+    // fallback
     if (activated.size === 0) {
         activated.add("Memory");
     }
 
-    // 3. активируем граф
-    activated.forEach(c => {
+    const conceptArray = Array.from(activated);
+
+    // 2. activate graph
+    conceptArray.forEach(c => {
         spreadActivation(c, 1);
     });
 
-    render(text, Array.from(activated));
+    // 🧠 3. LEARN FROM EXPERIENCE
+    experienceLog.push({
+        input: text,
+        concepts: conceptArray
+    });
+
+    learn(conceptArray);
+
+    render(text, conceptArray);
 }
 
-function render(text, activated) {
+// 🧠 RENDER
+function render(text, concepts) {
     const output = document.getElementById("output");
 
     let graph = "";
@@ -205,7 +242,8 @@ function render(text, activated) {
 
     output.innerHTML = `
         <div><b>INPUT:</b> ${text}</div>
-        <div><b>CONCEPTS:</b> ${activated.join(", ")}</div>
+        <div><b>CONCEPTS:</b> ${concepts.join(", ")}</div>
+        <div><b>MEMORY SIZE:</b> ${experienceLog.length}</div>
         <br>
         <div class="container">${graph}</div>
     `;

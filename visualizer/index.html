@@ -101,20 +101,29 @@ const cells = {
 };
 
 function activate(cellName) {
-    // сбрасываем всё
+    // 1. reset
     for (let c in cells) {
         cells[c].activation = 0;
     }
 
-    // активируем выбранную
-    cells[cellName].activation = 1;
-
-    // распространяем активацию
-    cells[cellName].connections.forEach(c => {
-        cells[c].activation = 0.4;
-    });
+    // 2. activate main node
+    spreadActivation(cellName, 1);
 
     render(cellName);
+}
+
+function spreadActivation(cellName, intensity) {
+    if (intensity < 0.2) return;
+
+    cells[cellName].activation = Math.max(
+        cells[cellName].activation,
+        intensity
+    );
+
+    // spread to neighbors
+    cells[cellName].connections.forEach(neighbor => {
+        spreadActivation(neighbor, intensity * 0.5);
+    });
 }
 
 function render(active) {
@@ -123,22 +132,26 @@ function render(active) {
     let graph = "";
 
     for (let c in cells) {
+        const a = cells[c].activation;
+
         graph += `
         <div style="
             margin:10px;
-            padding:10px;
+            padding:12px;
+            border-radius:10px;
             border:1px solid #333;
-            border-radius:8px;
-            background:${cells[c].activation > 0 ? '#1f3b3b' : '#1a1a1a'};
+            background: rgba(0,255,200,${a * 0.4});
+            transform: scale(${1 + a * 0.2});
+            transition: 0.2s;
         ">
             <b>${c}</b><br>
-            Activation: ${cells[c].activation}
+            activation: ${a.toFixed(2)}
         </div>
         `;
     }
 
     output.innerHTML = `
-        <b>ACTIVE CELL: ${active}</b><br><br>
+        <b>ACTIVE FIELD: ${active}</b><br><br>
         <div style="display:flex;justify-content:center;gap:10px;">
             ${graph}
         </div>

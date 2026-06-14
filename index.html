@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab - Visualizer v0</title>
+<title>Cognitive Lab v0.2</title>
+
 <style>
 body {
     margin: 0;
@@ -13,32 +14,47 @@ body {
 
 #core {
     text-align: center;
-    margin-top: 40px;
-    font-size: 22px;
+    margin-top: 20px;
+    font-size: 20px;
     color: #00ffcc;
+}
+
+#inputBox {
+    text-align: center;
+    margin-top: 20px;
+}
+
+input {
+    padding: 10px;
+    width: 60%;
+    border-radius: 8px;
+    border: none;
+}
+
+button {
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    margin-left: 5px;
 }
 
 .container {
     display: flex;
     justify-content: center;
-    margin-top: 60px;
+    margin-top: 40px;
     gap: 20px;
+    flex-wrap: wrap;
 }
 
 .cell {
     width: 160px;
-    height: 160px;
+    min-height: 120px;
     background: #1c1c1c;
     border: 1px solid #333;
     border-radius: 12px;
     padding: 10px;
-    cursor: pointer;
-    transition: 0.3s;
-}
-
-.cell:hover {
-    transform: scale(1.05);
-    border-color: #00ffcc;
+    transition: 0.2s;
 }
 
 .title {
@@ -53,80 +69,98 @@ body {
 }
 
 #output {
-    margin-top: 50px;
+    margin-top: 40px;
     text-align: center;
     color: #ffcc00;
 }
 </style>
+
 </head>
+
 <body>
 
-<div id="core">CORE: Cognitive Router</div>
+<div id="core">CORE: Cognitive Router + Field System</div>
+
+<div id="inputBox">
+    <input id="query" placeholder="Ask something... (memory, logic, compress)" />
+    <button onclick="runRouter()">Run</button>
+</div>
 
 <div class="container">
+    <div class="cell">
+        <div class="title">Memory Cell</div>
+        <div class="small">Concepts: 12<br>Cache: 4KB</div>
+    </div>
 
-<div class="cell" onclick="activate('Memory')">
-<div class="title">Memory Cell</div>
-<div class="small">Concepts: 12<br>Cache: 4KB</div>
+    <div class="cell">
+        <div class="title">Logic Cell</div>
+        <div class="small">Rules: 8<br>Confidence: 0.73</div>
+    </div>
+
+    <div class="cell">
+        <div class="title">Compression Cell</div>
+        <div class="small">Graphs: 5<br>Efficiency: 81%</div>
+    </div>
 </div>
 
-<div class="cell" onclick="activate('Logic')">
-<div class="title">Logic Cell</div>
-<div class="small">Rules: 8<br>Confidence: 0.73</div>
-</div>
-
-<div class="cell" onclick="activate('Compression')">
-<div class="title">Compression Cell</div>
-<div class="small">Graphs: 5<br>Efficiency: 81%</div>
-</div>
-
-</div>
-
-<div id="output">Click a Cell to activate Cognitive Field</div>
+<div id="output">Waiting for input...</div>
 
 <script>
+
 const cells = {
-    Memory: {
-        activation: 0,
-        connections: ["Logic", "Compression"]
-    },
-    Logic: {
-        activation: 0,
-        connections: ["Memory", "Compression"]
-    },
-    Compression: {
-        activation: 0,
-        connections: ["Memory"]
-    }
+    Memory: { activation: 0, connections: ["Logic", "Compression"] },
+    Logic: { activation: 0, connections: ["Memory", "Compression"] },
+    Compression: { activation: 0, connections: ["Memory"] }
 };
 
-function activate(cellName) {
-    // 1. reset
+function reset() {
     for (let c in cells) {
         cells[c].activation = 0;
     }
-
-    // 2. activate main node
-    spreadActivation(cellName, 1);
-
-    render(cellName);
 }
 
-function spreadActivation(cellName, intensity) {
+function spreadActivation(node, intensity) {
     if (intensity < 0.2) return;
 
-    cells[cellName].activation = Math.max(
-        cells[cellName].activation,
-        intensity
-    );
+    cells[node].activation = Math.max(cells[node].activation, intensity);
 
-    // spread to neighbors
-    cells[cellName].connections.forEach(neighbor => {
-        spreadActivation(neighbor, intensity * 0.5);
+    cells[node].connections.forEach(n => {
+        spreadActivation(n, intensity * 0.5);
     });
 }
 
-function render(active) {
+function runRouter() {
+    const text = document.getElementById("query").value.toLowerCase();
+
+    reset();
+
+    // ROUTER (rule-based semantic mapping)
+    let activated = [];
+
+    if (text.includes("memory")) {
+        spreadActivation("Memory", 1);
+        activated.push("Memory");
+    }
+
+    if (text.includes("logic") || text.includes("reason")) {
+        spreadActivation("Logic", 1);
+        activated.push("Logic");
+    }
+
+    if (text.includes("compress") || text.includes("optimize")) {
+        spreadActivation("Compression", 1);
+        activated.push("Compression");
+    }
+
+    // fallback routing
+    if (activated.length === 0) {
+        spreadActivation("Memory", 0.4);
+    }
+
+    render(text, activated);
+}
+
+function render(text, activated) {
     const output = document.getElementById("output");
 
     let graph = "";
@@ -135,28 +169,28 @@ function render(active) {
         const a = cells[c].activation;
 
         graph += `
-        <div style="
-            margin:10px;
-            padding:12px;
-            border-radius:10px;
-            border:1px solid #333;
+        <div class="cell" style="
             background: rgba(0,255,200,${a * 0.4});
             transform: scale(${1 + a * 0.2});
-            transition: 0.2s;
+            border-color: rgba(0,255,200,${a});
         ">
-            <b>${c}</b><br>
-            activation: ${a.toFixed(2)}
+            <div class="title">${c}</div>
+            <div class="small">
+                activation: ${a.toFixed(2)}<br>
+                links: ${cells[c].connections.join(", ")}
+            </div>
         </div>
         `;
     }
 
     output.innerHTML = `
-        <b>ACTIVE FIELD: ${active}</b><br><br>
-        <div style="display:flex;justify-content:center;gap:10px;">
-            ${graph}
-        </div>
+        <div><b>INPUT:</b> ${text}</div>
+        <div><b>ACTIVATED:</b> ${activated.join(", ") || "fallback (Memory)"}</div>
+        <br>
+        <div class="container">${graph}</div>
     `;
 }
+
 </script>
 
 </body>

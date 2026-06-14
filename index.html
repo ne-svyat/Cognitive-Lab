@@ -80,7 +80,187 @@ button {
 <body>
 
 <div id="core">CORE: Hybrid Cognitive Graph v0.7</div>
+<script>
 
+// ===============================
+// CORE GRAPH (cleaned version)
+// ===============================
+let graph = {
+    Memory: { activation: 0, links: { Logic: 0.6, Compression: 0.5 } },
+    Logic: { activation: 0, links: { Memory: 0.6, Compression: 0.5 } },
+    Compression: { activation: 0, links: { Memory: 0.5, Logic: 0.5 } }
+};
+
+// ===============================
+// EXPERIENCE MEMORY
+// ===============================
+let memory = [];
+
+// ===============================
+// STOPWORDS (noise filter)
+// ===============================
+const stopwords = new Set([
+    "my", "new", "about", "the", "a", "an", "is", "are", "to", "of", "and", "system", "idea", "design"
+]);
+
+// ===============================
+// NORMALIZATION
+// ===============================
+function normalize(word) {
+    word = word.toLowerCase().trim();
+
+    if (stopwords.has(word)) return null;
+
+    // merge obvious duplicates
+    if (word === "logic") return "Logic";
+    if (word === "compression" || word === "compress") return "Compression";
+    if (word === "memory") return "Memory";
+
+    // cryptography aliasing
+    if (word === "cryptography" || word === "encryption" || word === "security") {
+        return "Logic";
+    }
+
+    return null;
+}
+
+// ===============================
+// RESET
+// ===============================
+function reset() {
+    for (let n in graph) {
+        graph[n].activation = 0;
+    }
+}
+
+// ===============================
+// PROPAGATION
+// ===============================
+function spread(node, intensity, visited = new Set()) {
+    if (intensity < 0.15) return;
+    if (visited.has(node)) return;
+
+    visited.add(node);
+
+    graph[node].activation = Math.max(
+        graph[node].activation,
+        intensity
+    );
+
+    for (let target in graph[node].links) {
+        spread(target, intensity * graph[node].links[target], visited);
+    }
+}
+
+// ===============================
+// LEARNING (stable strengthening)
+// ===============================
+function learn(concepts) {
+    if (concepts.length < 2) return;
+
+    for (let i = 0; i < concepts.length; i++) {
+        for (let j = i + 1; j < concepts.length; j++) {
+
+            let a = concepts[i];
+            let b = concepts[j];
+
+            graph[a].links[b] = (graph[a].links[b] || 0.3) + 0.05;
+            graph[b].links[a] = (graph[b].links[a] || 0.3) + 0.05;
+
+            // clamp (IMPORTANT stability rule)
+            graph[a].links[b] = Math.min(graph[a].links[b], 1.5);
+            graph[b].links[a] = Math.min(graph[b].links[a], 1.5);
+        }
+    }
+}
+
+// ===============================
+// FORGETTING (noise control)
+// ===============================
+function decay() {
+    for (let n in graph) {
+        for (let l in graph[n].links) {
+
+            graph[n].links[l] -= 0.01;
+
+            if (graph[n].links[l] < 0.2) {
+                delete graph[n].links[l];
+            }
+        }
+    }
+}
+
+// ===============================
+// ROUTER (clean semantic extraction)
+// ===============================
+function run() {
+    let text = document.getElementById("query").value.toLowerCase();
+
+    reset();
+
+    let words = text.split(" ");
+
+    let concepts = new Set();
+
+    for (let w of words) {
+        let c = normalize(w);
+        if (c) concepts.add(c);
+    }
+
+    if (concepts.size === 0) {
+        concepts.add("Memory");
+    }
+
+    let arr = Array.from(concepts);
+
+    // activate
+    for (let c of arr) {
+        spread(c, 1);
+    }
+
+    // memory log
+    memory.push({ text, concepts: arr });
+
+    // learning + decay
+    learn(arr);
+    decay();
+
+    render(text, arr);
+}
+
+// ===============================
+// RENDER
+// ===============================
+function render(text, concepts) {
+    let out = document.getElementById("output");
+
+    let html = "";
+
+    for (let n in graph) {
+        html += `
+        <div class="cell" style="
+            background: rgba(0,255,200,${graph[n].activation * 0.4});
+            transform: scale(${1 + graph[n].activation * 0.2});
+        ">
+            <div class="title">${n}</div>
+            <div class="small">
+                activation: ${graph[n].activation.toFixed(2)}<br>
+                links: ${Object.keys(graph[n].links).join(", ") || "none"}
+            </div>
+        </div>
+        `;
+    }
+
+    out.innerHTML = `
+        <div><b>INPUT:</b> ${text}</div>
+        <div><b>CONCEPTS:</b> ${concepts.join(", ")}</div>
+        <div><b>NODES:</b> ${Object.keys(graph).length}</div>
+        <br>
+        <div class="container">${html}</div>
+    `;
+}
+
+</script>
 <div id="inputBox">
     <input id="query" placeholder="Ask anything..." />
     <button onclick="run()">Run</button>
@@ -105,218 +285,7 @@ button {
 
 <div id="output">Waiting for input...</div>
 
-<script>
 
-// ===============================
-// CORE GRAPH
-// ===============================
-let graph = {
-    Memory: { activation: 0, links: { Logic: 0.5, Compression: 0.3 } },
-    Logic: { activation: 0, links: { Memory: 0.5, Compression: 0.4 } },
-    Compression: { activation: 0, links: { Memory: 0.3 } }
-};
-
-// ===============================
-// EXPERIENCE MEMORY
-// ===============================
-let memory = [];
-
-// ===============================
-// RESET
-// ===============================
-function reset() {
-    for (let n in graph) {
-        graph[n].activation = 0;
-    }
-}
-
-// ===============================
-// VECTOR SIMULATION (pseudo-embeddings)
-// ===============================
-function vectorize(word) {
-    let v = { Memory: 0, Logic: 0, Compression: 0 };
-
-    word = word.toLowerCase();
-
-    for (let i = 0; i < word.length; i++) {
-        let c = word[i];
-
-        if ("memrory".includes(c)) v.Memory += 0.1;
-        if ("logicreasonthink".includes(c)) v.Logic += 0.1;
-        if ("compressoptimize".includes(c)) v.Compression += 0.1;
-    }
-
-    // memory influence
-    for (let m of memory) {
-        if (m.text.includes(word)) {
-            for (let c of m.concepts) {
-                v[c] += 0.2;
-            }
-        }
-    }
-
-    return v;
-}
-
-// ===============================
-// SPREAD ACTIVATION
-// ===============================
-function spread(node, intensity, visited = new Set()) {
-    if (intensity < 0.15) return;
-    if (visited.has(node)) return;
-
-    visited.add(node);
-
-    graph[node].activation = Math.max(
-        graph[node].activation,
-        intensity
-    );
-
-    for (let target in graph[node].links) {
-        spread(target, intensity * graph[node].links[target], visited);
-    }
-}
-
-// ===============================
-// LEARNING (Hebbian-like)
-// ===============================
-function learn(concepts) {
-    for (let i = 0; i < concepts.length; i++) {
-        for (let j = i + 1; j < concepts.length; j++) {
-
-            let a = concepts[i];
-            let b = concepts[j];
-
-            graph[a].links[b] = (graph[a].links[b] || 0.2) + 0.1;
-            graph[b].links[a] = (graph[b].links[a] || 0.2) + 0.1;
-        }
-    }
-}
-
-// ===============================
-// FORGETTING
-// ===============================
-function decay() {
-    for (let n in graph) {
-        for (let l in graph[n].links) {
-            graph[n].links[l] -= 0.01;
-
-            if (graph[n].links[l] <= 0.05) {
-                delete graph[n].links[l];
-            }
-        }
-    }
-}
-
-// ===============================
-// AUTO-CONCEPT GENERATION
-// ===============================
-function maybeCreateConcept(text, concepts) {
-    if (text.length < 12) return;
-
-    let name = text.split(" ")[0];
-
-    if (!graph[name]) {
-        graph[name] = {
-            activation: 0,
-            links: {}
-        };
-    }
-
-    for (let c of concepts) {
-        graph[name].links[c] = 0.3;
-        graph[c].links[name] = 0.3;
-    }
-}
-
-// ===============================
-// MAIN ROUTER
-// ===============================
-function run() {
-    let text = document.getElementById("query").value.toLowerCase();
-
-    reset();
-
-    let words = text.split(" ");
-
-    let scores = {
-        Memory: 0,
-        Logic: 0,
-        Compression: 0
-    };
-
-    let vectors = [];
-
-    for (let w of words) {
-        let v = vectorize(w);
-        vectors.push(v);
-
-        scores.Memory += v.Memory;
-        scores.Logic += v.Logic;
-        scores.Compression += v.Compression;
-    }
-
-    let concepts = [];
-
-    for (let c in scores) {
-        if (scores[c] > 0.3) {
-            concepts.push(c);
-        }
-    }
-
-    if (concepts.length === 0) {
-        concepts = ["Memory"];
-    }
-
-    for (let c of concepts) {
-        spread(c, 1);
-    }
-
-    learn(concepts);
-    decay();
-    maybeCreateConcept(text, concepts);
-
-    memory.push({
-        text,
-        concepts
-    });
-
-    render(text, concepts, scores);
-}
-
-// ===============================
-// RENDER
-// ===============================
-function render(text, concepts, scores) {
-    let out = document.getElementById("output");
-
-    let html = "";
-
-    for (let n in graph) {
-        html += `
-        <div class="cell" style="
-            background: rgba(0,255,200,${graph[n].activation * 0.4});
-            transform: scale(${1 + graph[n].activation * 0.2});
-        ">
-            <div class="title">${n}</div>
-            <div class="small">
-                act: ${graph[n].activation.toFixed(2)}<br>
-                links: ${Object.keys(graph[n].links).join(", ") || "none"}
-            </div>
-        </div>
-        `;
-    }
-
-    out.innerHTML = `
-        <div><b>INPUT:</b> ${text}</div>
-        <div><b>CONCEPTS:</b> ${concepts.join(", ")}</div>
-        <div><b>NODES:</b> ${Object.keys(graph).length}</div>
-        <br>
-        <div class="container">${html}</div>
-    `;
-}
-
-</script>
 
 </body>
 </html>

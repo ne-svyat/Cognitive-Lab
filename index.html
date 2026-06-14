@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab v0.7 Hybrid System</title>
+<title>Cognitive Lab v0.9 — Memory Graph</title>
 
 <style>
 body {
@@ -14,14 +14,14 @@ body {
 
 #core {
     text-align: center;
-    margin-top: 20px;
-    font-size: 20px;
+    margin-top: 15px;
+    font-size: 18px;
     color: #00ffcc;
 }
 
 #inputBox {
     text-align: center;
-    margin-top: 20px;
+    margin-top: 15px;
 }
 
 input {
@@ -42,18 +42,18 @@ button {
 .container {
     display: flex;
     justify-content: center;
-    margin-top: 40px;
-    gap: 20px;
     flex-wrap: wrap;
+    gap: 20px;
+    margin-top: 30px;
 }
 
 .cell {
-    width: 170px;
+    width: 180px;
     min-height: 120px;
     background: #1c1c1c;
-    border: 1px solid #333;
     border-radius: 12px;
     padding: 10px;
+    border: 1px solid #333;
     transition: 0.2s;
 }
 
@@ -64,14 +64,19 @@ button {
 
 .small {
     font-size: 12px;
-    margin-top: 10px;
     color: #aaa;
+    margin-top: 8px;
 }
 
-#output {
-    margin-top: 40px;
-    text-align: center;
-    color: #ffcc00;
+/* ========================= */
+/* GRAPH VISUALIZATION */
+/* ========================= */
+#graphCanvas {
+    display: block;
+    margin: 30px auto;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 10px;
 }
 </style>
 
@@ -79,47 +84,52 @@ button {
 
 <body>
 
-<div id="core">CORE: Hybrid Cognitive Graph v0.7</div>
+<div id="core">CORE: Cognitive Memory Graph v0.9</div>
+
+<div id="inputBox">
+    <input id="query" placeholder="Try: cryptography, memory, compression..." />
+    <button onclick="run()">Run</button>
+</div>
+
+<canvas id="graphCanvas" width="800" height="300"></canvas>
+
+<div class="container" id="cells"></div>
+
+<div id="output" style="text-align:center; margin-top:20px;"></div>
+
 <script>
 
 // ===============================
-// CORE GRAPH (cleaned version)
+// GRAPH CORE
 // ===============================
 let graph = {
-    Memory: { activation: 0, links: { Logic: 0.6, Compression: 0.5 } },
-    Logic: { activation: 0, links: { Memory: 0.6, Compression: 0.5 } },
-    Compression: { activation: 0, links: { Memory: 0.5, Logic: 0.5 } }
+    Memory: { act: 0, links: { Logic: 0.6, Compression: 0.5 }, importance: 1 },
+    Logic: { act: 0, links: { Memory: 0.6, Compression: 0.5 }, importance: 1 },
+    Compression: { act: 0, links: { Memory: 0.5, Logic: 0.5 }, importance: 1 }
 };
 
 // ===============================
-// EXPERIENCE MEMORY
+// MEMORY LOG
 // ===============================
 let memory = [];
 
 // ===============================
-// STOPWORDS (noise filter)
+// CLEANER
 // ===============================
 const stopwords = new Set([
-    "my", "new", "about", "the", "a", "an", "is", "are", "to", "of", "and", "system", "idea", "design"
+    "my","new","idea","system","about","the","a","an","is","are","to","of","and"
 ]);
 
-// ===============================
-// NORMALIZATION
-// ===============================
-function normalize(word) {
-    word = word.toLowerCase().trim();
+function normalize(w) {
+    w = w.toLowerCase();
 
-    if (stopwords.has(word)) return null;
+    if (stopwords.has(w)) return null;
 
-    // merge obvious duplicates
-    if (word === "logic") return "Logic";
-    if (word === "compression" || word === "compress") return "Compression";
-    if (word === "memory") return "Memory";
+    if (w.includes("logic") || w.includes("reason")) return "Logic";
+    if (w.includes("compress") || w.includes("optimize")) return "Compression";
+    if (w.includes("memory") || w.includes("remember")) return "Memory";
 
-    // cryptography aliasing
-    if (word === "cryptography" || word === "encryption" || word === "security") {
-        return "Logic";
-    }
+    if (w.includes("crypt") || w.includes("encrypt") || w.includes("security")) return "Logic";
 
     return null;
 }
@@ -128,13 +138,11 @@ function normalize(word) {
 // RESET
 // ===============================
 function reset() {
-    for (let n in graph) {
-        graph[n].activation = 0;
-    }
+    for (let n in graph) graph[n].act = 0;
 }
 
 // ===============================
-// PROPAGATION
+// SPREAD (activation)
 // ===============================
 function spread(node, intensity, visited = new Set()) {
     if (intensity < 0.15) return;
@@ -142,22 +150,17 @@ function spread(node, intensity, visited = new Set()) {
 
     visited.add(node);
 
-    graph[node].activation = Math.max(
-        graph[node].activation,
-        intensity
-    );
+    graph[node].act = Math.max(graph[node].act, intensity);
 
-    for (let target in graph[node].links) {
-        spread(target, intensity * graph[node].links[target], visited);
+    for (let l in graph[node].links) {
+        spread(l, intensity * graph[node].links[l], visited);
     }
 }
 
 // ===============================
-// LEARNING (stable strengthening)
+// LEARNING
 // ===============================
 function learn(concepts) {
-    if (concepts.length < 2) return;
-
     for (let i = 0; i < concepts.length; i++) {
         for (let j = i + 1; j < concepts.length; j++) {
 
@@ -167,34 +170,53 @@ function learn(concepts) {
             graph[a].links[b] = (graph[a].links[b] || 0.3) + 0.05;
             graph[b].links[a] = (graph[b].links[a] || 0.3) + 0.05;
 
-            // clamp (IMPORTANT stability rule)
-            graph[a].links[b] = Math.min(graph[a].links[b], 1.5);
-            graph[b].links[a] = Math.min(graph[b].links[a], 1.5);
+            graph[a].importance += 0.02;
+            graph[b].importance += 0.02;
         }
     }
 }
 
 // ===============================
-// FORGETTING (noise control)
+// FORGETTING
 // ===============================
 function decay() {
     for (let n in graph) {
         for (let l in graph[n].links) {
-
             graph[n].links[l] -= 0.01;
 
             if (graph[n].links[l] < 0.2) {
                 delete graph[n].links[l];
             }
         }
+
+        // importance decay
+        graph[n].importance *= 0.999;
     }
 }
 
 // ===============================
-// ROUTER (clean semantic extraction)
+// AUTO CONCEPTS
+// ===============================
+function maybeCreate(text, concepts) {
+    if (text.length < 10) return;
+
+    let name = text.split(" ")[0];
+
+    if (!graph[name]) {
+        graph[name] = { act: 0, links: {}, importance: 0.5 };
+    }
+
+    for (let c of concepts) {
+        graph[name].links[c] = 0.3;
+        graph[c].links[name] = 0.3;
+    }
+}
+
+// ===============================
+// ROUTER
 // ===============================
 function run() {
-    let text = document.getElementById("query").value.toLowerCase();
+    let text = document.getElementById("query").value;
 
     reset();
 
@@ -207,85 +229,104 @@ function run() {
         if (c) concepts.add(c);
     }
 
-    if (concepts.size === 0) {
-        concepts.add("Memory");
-    }
+    if (concepts.size === 0) concepts.add("Memory");
 
     let arr = Array.from(concepts);
 
-    // activate
-    for (let c of arr) {
-        spread(c, 1);
-    }
+    for (let c of arr) spread(c, 1);
 
-    // memory log
-    memory.push({ text, concepts: arr });
-
-    // learning + decay
     learn(arr);
     decay();
+    maybeCreate(text, arr);
 
-    render(text, arr);
+    memory.push({ text, concepts: arr });
+
+    render(arr);
+    drawGraph();
 }
 
 // ===============================
-// RENDER
+// RENDER NODES
 // ===============================
-function render(text, concepts) {
-    let out = document.getElementById("output");
+function render(concepts) {
+    let box = document.getElementById("cells");
 
     let html = "";
 
     for (let n in graph) {
         html += `
         <div class="cell" style="
-            background: rgba(0,255,200,${graph[n].activation * 0.4});
-            transform: scale(${1 + graph[n].activation * 0.2});
+            background: rgba(0,255,200,${graph[n].act * 0.4});
+            transform: scale(${1 + graph[n].act * 0.2});
         ">
             <div class="title">${n}</div>
             <div class="small">
-                activation: ${graph[n].activation.toFixed(2)}<br>
+                act: ${graph[n].act.toFixed(2)}<br>
+                imp: ${graph[n].importance.toFixed(2)}<br>
                 links: ${Object.keys(graph[n].links).join(", ") || "none"}
             </div>
         </div>
         `;
     }
 
-    out.innerHTML = `
-        <div><b>INPUT:</b> ${text}</div>
-        <div><b>CONCEPTS:</b> ${concepts.join(", ")}</div>
-        <div><b>NODES:</b> ${Object.keys(graph).length}</div>
-        <br>
-        <div class="container">${html}</div>
-    `;
+    box.innerHTML = html;
+
+    document.getElementById("output").innerHTML =
+        "CONCEPTS: " + concepts.join(", ") +
+        "<br>MEMORY: " + memory.length +
+        "<br>NODES: " + Object.keys(graph).length;
+}
+
+// ===============================
+// GRAPH VISUALIZATION (simple)
+// ===============================
+function drawGraph() {
+    const canvas = document.getElementById("graphCanvas");
+    const ctx = canvas.getContext("2d");
+
+    ctx.clearRect(0,0,800,300);
+
+    let nodes = Object.keys(graph);
+    let pos = {};
+
+    // layout circle
+    let radius = 120;
+    let cx = 400, cy = 150;
+
+    nodes.forEach((n,i)=>{
+        let angle = (i / nodes.length) * Math.PI * 2;
+        pos[n] = {
+            x: cx + Math.cos(angle)*radius,
+            y: cy + Math.sin(angle)*radius
+        };
+    });
+
+    // links
+    ctx.strokeStyle = "rgba(0,255,200,0.3)";
+    for (let a in graph) {
+        for (let b in graph[a].links) {
+            if (pos[a] && pos[b]) {
+                ctx.beginPath();
+                ctx.moveTo(pos[a].x, pos[a].y);
+                ctx.lineTo(pos[b].x, pos[b].y);
+                ctx.stroke();
+            }
+        }
+    }
+
+    // nodes
+    for (let n in pos) {
+        ctx.beginPath();
+        ctx.fillStyle = "#00ffcc";
+        ctx.arc(pos[n].x, pos[n].y, 10 + graph[n].act*5, 0, Math.PI*2);
+        ctx.fill();
+
+        ctx.fillStyle = "white";
+        ctx.fillText(n, pos[n].x + 10, pos[n].y);
+    }
 }
 
 </script>
-<div id="inputBox">
-    <input id="query" placeholder="Ask anything..." />
-    <button onclick="run()">Run</button>
-</div>
-
-<div class="container">
-    <div class="cell">
-        <div class="title">Memory</div>
-        <div class="small">adaptive storage</div>
-    </div>
-
-    <div class="cell">
-        <div class="title">Logic</div>
-        <div class="small">reasoning layer</div>
-    </div>
-
-    <div class="cell">
-        <div class="title">Compression</div>
-        <div class="small">optimization layer</div>
-    </div>
-</div>
-
-<div id="output">Waiting for input...</div>
-
-
 
 </body>
 </html>

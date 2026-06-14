@@ -85,42 +85,64 @@ body {
 <div id="output">Click a Cell to activate Cognitive Field</div>
 
 <script>
-function activate(cell) {
+const cells = {
+    Memory: {
+        activation: 0,
+        connections: ["Logic", "Compression"]
+    },
+    Logic: {
+        activation: 0,
+        connections: ["Memory", "Compression"]
+    },
+    Compression: {
+        activation: 0,
+        connections: ["Memory"]
+    }
+};
+
+function activate(cellName) {
+    // сбрасываем всё
+    for (let c in cells) {
+        cells[c].activation = 0;
+    }
+
+    // активируем выбранную
+    cells[cellName].activation = 1;
+
+    // распространяем активацию
+    cells[cellName].connections.forEach(c => {
+        cells[c].activation = 0.4;
+    });
+
+    render(cellName);
+}
+
+function render(active) {
     const output = document.getElementById("output");
 
-    if (cell === "Memory") {
-        output.innerHTML = `
-        <b>Memory Cell Activated</b><br><br>
-        Concepts loaded:<br>
-        - Sandbox<br>
-        - Bubble<br>
-        - Graph<br>
-        - Cache<br><br>
-        Field Type: Local Storage
+    let graph = "";
+
+    for (let c in cells) {
+        graph += `
+        <div style="
+            margin:10px;
+            padding:10px;
+            border:1px solid #333;
+            border-radius:8px;
+            background:${cells[c].activation > 0 ? '#1f3b3b' : '#1a1a1a'};
+        ">
+            <b>${c}</b><br>
+            Activation: ${cells[c].activation}
+        </div>
         `;
     }
 
-    if (cell === "Logic") {
-        output.innerHTML = `
-        <b>Logic Cell Activated</b><br><br>
-        Rules loaded:<br>
-        - IF concept overlaps → merge<br>
-        - IF conflict → mark<br>
-        - IF low confidence → expand field<br><br>
-        Field Type: Reasoning Layer
-        `;
-    }
-
-    if (cell === "Compression") {
-        output.innerHTML = `
-        <b>Compression Cell Activated</b><br><br>
-        Active compression strategies:<br>
-        - Concept merging<br>
-        - Graph pruning<br>
-        - Cache reuse<br><br>
-        Efficiency gain simulated: +32%
-        `;
-    }
+    output.innerHTML = `
+        <b>ACTIVE CELL: ${active}</b><br><br>
+        <div style="display:flex;justify-content:center;gap:10px;">
+            ${graph}
+        </div>
+    `;
 }
 </script>
 

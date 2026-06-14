@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab v0.5</title>
+<title>Cognitive Lab v0.6</title>
 
 <style>
 body {
@@ -79,27 +79,27 @@ button {
 
 <body>
 
-<div id="core">CORE: Cognitive Router + Learning Field</div>
+<div id="core">CORE: Embedding Router (v0.6)</div>
 
 <div id="inputBox">
-    <input id="query" placeholder="Ask something... (memory, logic, compress, cryptography)" />
+    <input id="query" placeholder="Ask anything..." />
     <button onclick="runRouter()">Run</button>
 </div>
 
 <div class="container">
     <div class="cell">
         <div class="title">Memory Cell</div>
-        <div class="small">Concepts: 12<br>Cache: 4KB</div>
+        <div class="small">adaptive storage</div>
     </div>
 
     <div class="cell">
         <div class="title">Logic Cell</div>
-        <div class="small">Rules: 8<br>Confidence: 0.73</div>
+        <div class="small">reasoning layer</div>
     </div>
 
     <div class="cell">
         <div class="title">Compression Cell</div>
-        <div class="small">Graphs: 5<br>Efficiency: 81%</div>
+        <div class="small">optimization layer</div>
     </div>
 </div>
 
@@ -113,34 +113,43 @@ const cells = {
     Compression: { activation: 0, connections: { Memory: 0.3 } }
 };
 
-const conceptMap = {
-    memory: ["Memory"],
-    remember: ["Memory"],
+let experience = [];
 
-    logic: ["Logic"],
-    reason: ["Logic"],
-    think: ["Logic"],
-
-    compress: ["Compression"],
-    optimize: ["Compression"],
-
-    cryptography: ["Logic", "Memory"],
-    encryption: ["Logic"],
-    security: ["Logic", "Compression"],
-    key: ["Memory", "Logic"]
-};
-
-let experienceLog = [];
-
-// reset activation
+// reset
 function reset() {
     for (let c in cells) {
         cells[c].activation = 0;
     }
 }
 
-// propagation with weights
-function spreadActivation(node, intensity, visited = new Set()) {
+// fuzzy similarity (VERY simplified embedding idea)
+function similarity(word, cell) {
+    word = word.toLowerCase();
+    cell = cell.toLowerCase();
+
+    let score = 0;
+
+    // shared letters heuristic
+    for (let i = 0; i < word.length; i++) {
+        if (cell.includes(word[i])) {
+            score += 0.1;
+        }
+    }
+
+    // experience boost
+    for (let exp of experience) {
+        if (exp.concepts.includes(cell)) {
+            if (exp.text.includes(word)) {
+                score += 0.3;
+            }
+        }
+    }
+
+    return score;
+}
+
+// propagation
+function spread(node, intensity, visited = new Set()) {
     if (intensity < 0.15) return;
     if (visited.has(node)) return;
 
@@ -151,93 +160,59 @@ function spreadActivation(node, intensity, visited = new Set()) {
         intensity
     );
 
-    const connections = cells[node].connections;
+    const links = cells[node].connections;
 
-    for (let target in connections) {
-        const weight = connections[target];
-
-        spreadActivation(
-            target,
-            intensity * weight,
-            visited
-        );
+    for (let target in links) {
+        spread(target, intensity * links[target], visited);
     }
 }
 
-// learning system
-function learn(concepts) {
-    if (concepts.length < 2) return;
-
-    for (let i = 0; i < concepts.length; i++) {
-        for (let j = i + 1; j < concepts.length; j++) {
-
-            const a = concepts[i];
-            const b = concepts[j];
-
-            if (!cells[a].connections[b]) {
-                cells[a].connections[b] = 0.2;
-            } else {
-                cells[a].connections[b] += 0.1;
-            }
-
-            if (!cells[b].connections[a]) {
-                cells[b].connections[a] = 0.2;
-            } else {
-                cells[b].connections[a] += 0.1;
-            }
-        }
-    }
-}
-
-// forgetting system
-function decay() {
-    for (let c in cells) {
-        const connections = cells[c].connections;
-
-        for (let target in connections) {
-            connections[target] -= 0.02;
-
-            if (connections[target] <= 0.05) {
-                delete connections[target];
-            }
-        }
-    }
-}
-
-// router
+// router (NO conceptMap anymore)
 function runRouter() {
     const text = document.getElementById("query").value.toLowerCase();
 
     reset();
 
-    let activated = new Set();
+    const words = text.split(" ");
 
-    for (let key in conceptMap) {
-        if (text.includes(key)) {
-            conceptMap[key].forEach(c => activated.add(c));
+    let scores = {
+        Memory: 0,
+        Logic: 0,
+        Compression: 0
+    };
+
+    for (let w of words) {
+        scores.Memory += similarity(w, "Memory");
+        scores.Logic += similarity(w, "Logic");
+        scores.Compression += similarity(w, "Compression");
+    }
+
+    let activated = [];
+
+    for (let c in scores) {
+        if (scores[c] > 0.2) {
+            activated.push(c);
         }
     }
 
-    if (activated.size === 0) {
-        activated.add("Memory");
+    if (activated.length === 0) {
+        activated = ["Memory"];
     }
 
-    const concepts = Array.from(activated);
+    for (let c of activated) {
+        spread(c, 1);
+    }
 
-    concepts.forEach(c => {
-        spreadActivation(c, 1);
+    experience.push({
+        text,
+        concepts: activated
     });
 
-    experienceLog.push({ text, concepts });
-
-    learn(concepts);
-    decay();
-
-    render(text, concepts);
+    render(text, activated, scores);
 }
 
 // render
-function render(text, concepts) {
+function render(text, concepts, scores) {
     const output = document.getElementById("output");
 
     let graph = "";
@@ -245,20 +220,15 @@ function render(text, concepts) {
     for (let c in cells) {
         const a = cells[c].activation;
 
-        let links = Object.entries(cells[c].connections)
-            .map(([k, v]) => `${k}:${v.toFixed(2)}`)
-            .join(" | ");
-
         graph += `
         <div class="cell" style="
             background: rgba(0,255,200,${a * 0.4});
             transform: scale(${1 + a * 0.2});
-            border-color: rgba(0,255,200,${a});
         ">
             <div class="title">${c}</div>
             <div class="small">
                 activation: ${a.toFixed(2)}<br>
-                links: ${links || "none"}
+                score: ${scores[c].toFixed(2)}
             </div>
         </div>
         `;
@@ -266,8 +236,8 @@ function render(text, concepts) {
 
     output.innerHTML = `
         <div><b>INPUT:</b> ${text}</div>
-        <div><b>CONCEPTS:</b> ${concepts.join(", ")}</div>
-        <div><b>MEMORY SIZE:</b> ${experienceLog.length}</div>
+        <div><b>ACTIVATED:</b> ${concepts.join(", ")}</div>
+        <div><b>EXPERIENCE:</b> ${experience.length}</div>
         <br>
         <div class="container">${graph}</div>
     `;

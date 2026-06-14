@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab v0.2</title>
+<title>Cognitive Lab v0.5</title>
 
 <style>
 body {
@@ -79,10 +79,10 @@ button {
 
 <body>
 
-<div id="core">CORE: Cognitive Router + Field System</div>
+<div id="core">CORE: Cognitive Router + Learning Field</div>
 
 <div id="inputBox">
-    <input id="query" placeholder="Ask something... (memory, logic, compress)" />
+    <input id="query" placeholder="Ask something... (memory, logic, compress, cryptography)" />
     <button onclick="runRouter()">Run</button>
 </div>
 
@@ -108,12 +108,11 @@ button {
 <script>
 
 const cells = {
-    Memory: { activation: 0, connections: ["Logic", "Compression"] },
-    Logic: { activation: 0, connections: ["Memory", "Compression"] },
-    Compression: { activation: 0, connections: ["Memory"] }
+    Memory: { activation: 0, connections: { Logic: 0.5, Compression: 0.3 } },
+    Logic: { activation: 0, connections: { Memory: 0.5, Compression: 0.4 } },
+    Compression: { activation: 0, connections: { Memory: 0.3 } }
 };
 
-// 🧠 SEMANTIC MAP
 const conceptMap = {
     memory: ["Memory"],
     remember: ["Memory"],
@@ -131,7 +130,6 @@ const conceptMap = {
     key: ["Memory", "Logic"]
 };
 
-// 🧠 EXPERIENCE MEMORY (НОВАЯ ЧАСТЬ)
 let experienceLog = [];
 
 // reset activation
@@ -141,23 +139,33 @@ function reset() {
     }
 }
 
-// propagation
-function spreadActivation(node, intensity) {
-    if (intensity < 0.2) return;
+// propagation with weights
+function spreadActivation(node, intensity, visited = new Set()) {
+    if (intensity < 0.15) return;
+    if (visited.has(node)) return;
+
+    visited.add(node);
 
     cells[node].activation = Math.max(
         cells[node].activation,
         intensity
     );
 
-    cells[node].connections.forEach(n => {
-        spreadActivation(n, intensity * 0.55);
-    });
+    const connections = cells[node].connections;
+
+    for (let target in connections) {
+        const weight = connections[target];
+
+        spreadActivation(
+            target,
+            intensity * weight,
+            visited
+        );
+    }
 }
 
-// 🧠 LEARNING ENGINE
+// learning system
 function learn(concepts) {
-    // если меньше 2 концептов — нечего учить
     if (concepts.length < 2) return;
 
     for (let i = 0; i < concepts.length; i++) {
@@ -166,19 +174,37 @@ function learn(concepts) {
             const a = concepts[i];
             const b = concepts[j];
 
-            // создаём или усиливаем связь A → B
-            if (!cells[a].connections.includes(b)) {
-                cells[a].connections.push(b);
+            if (!cells[a].connections[b]) {
+                cells[a].connections[b] = 0.2;
+            } else {
+                cells[a].connections[b] += 0.1;
             }
 
-            if (!cells[b].connections.includes(a)) {
-                cells[b].connections.push(a);
+            if (!cells[b].connections[a]) {
+                cells[b].connections[a] = 0.2;
+            } else {
+                cells[b].connections[a] += 0.1;
             }
         }
     }
 }
 
-// 🧠 ROUTER + LEARNING
+// forgetting system
+function decay() {
+    for (let c in cells) {
+        const connections = cells[c].connections;
+
+        for (let target in connections) {
+            connections[target] -= 0.02;
+
+            if (connections[target] <= 0.05) {
+                delete connections[target];
+            }
+        }
+    }
+}
+
+// router
 function runRouter() {
     const text = document.getElementById("query").value.toLowerCase();
 
@@ -186,37 +212,31 @@ function runRouter() {
 
     let activated = new Set();
 
-    // 1. semantic matching
     for (let key in conceptMap) {
         if (text.includes(key)) {
             conceptMap[key].forEach(c => activated.add(c));
         }
     }
 
-    // fallback
     if (activated.size === 0) {
         activated.add("Memory");
     }
 
-    const conceptArray = Array.from(activated);
+    const concepts = Array.from(activated);
 
-    // 2. activate graph
-    conceptArray.forEach(c => {
+    concepts.forEach(c => {
         spreadActivation(c, 1);
     });
 
-    // 🧠 3. LEARN FROM EXPERIENCE
-    experienceLog.push({
-        input: text,
-        concepts: conceptArray
-    });
+    experienceLog.push({ text, concepts });
 
-    learn(conceptArray);
+    learn(concepts);
+    decay();
 
-    render(text, conceptArray);
+    render(text, concepts);
 }
 
-// 🧠 RENDER
+// render
 function render(text, concepts) {
     const output = document.getElementById("output");
 
@@ -224,6 +244,10 @@ function render(text, concepts) {
 
     for (let c in cells) {
         const a = cells[c].activation;
+
+        let links = Object.entries(cells[c].connections)
+            .map(([k, v]) => `${k}:${v.toFixed(2)}`)
+            .join(" | ");
 
         graph += `
         <div class="cell" style="
@@ -234,7 +258,7 @@ function render(text, concepts) {
             <div class="title">${c}</div>
             <div class="small">
                 activation: ${a.toFixed(2)}<br>
-                links: ${cells[c].connections.join(", ")}
+                links: ${links || "none"}
             </div>
         </div>
         `;

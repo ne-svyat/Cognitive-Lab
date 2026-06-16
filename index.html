@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab v0.11 — Competitive Field</title>
+<title>Cognitive Field v0.12.1</title>
 
 <style>
 body {
@@ -36,206 +36,223 @@ button {
     border-radius: 8px;
     border: none;
     cursor: pointer;
-    margin-left: 5px;
 }
 
 .container {
     display: flex;
-    justify-content: center;
     flex-wrap: wrap;
-    gap: 20px;
-    margin-top: 30px;
+    justify-content: center;
+    gap: 15px;
+    margin-top: 20px;
 }
 
 .cell {
     width: 200px;
-    min-height: 120px;
+    min-height: 110px;
     background: #1c1c1c;
     border-radius: 12px;
     padding: 10px;
-    border: 1px solid #333;
 }
 
 .title {
     color: #00ffcc;
-    font-weight: bold;
 }
 
 .small {
     font-size: 12px;
     color: #aaa;
-    margin-top: 8px;
 }
 
 #graphCanvas {
     display: block;
-    margin: 30px auto;
+    margin: 20px auto;
     background: #111;
-    border: 1px solid #333;
-    border-radius: 10px;
 }
 </style>
 </head>
 
 <body>
 
-<div id="core">CORE: Cognitive Field v0.11 — Competitive Energy System</div>
+<div id="core">Cognitive Field v0.12.1 — Hybrid Thinking System</div>
 
 <div id="inputBox">
-    <input id="query" placeholder="Try: cryptography, memory, compression..." />
+    <input id="query" placeholder="Ask something..." />
     <button onclick="run()">Run</button>
 </div>
 
-<canvas id="graphCanvas" width="800" height="300"></canvas>
+<canvas id="graphCanvas" width="800" height="280"></canvas>
 
 <div class="container" id="cells"></div>
 
-<div id="output" style="text-align:center;margin-top:20px;"></div>
+<div id="output" style="text-align:center;margin-top:15px;"></div>
 
 <script>
 
-// =========================
-// FIELD NODES (NOT GRAPH)
-// =========================
+// ======================
+// CORE NODES
+// ======================
 let nodes = {
-    Memory: { e: 0, bias: 1.0 },
-    Logic: { e: 0, bias: 1.0 },
-    Compression: { e: 0, bias: 1.0 }
+    Memory: { e: 0, bias: 1 },
+    Logic: { e: 0, bias: 1 },
+    Compression: { e: 0, bias: 1 }
 };
 
 let history = [];
 
-// =========================
-// CLEAN INPUT
-// =========================
+// ======================
+// CLEAN + MAP
+// ======================
 function clean(w) {
     w = w.toLowerCase();
-
-    const stop = new Set([
-        "my","new","idea","system","about","the","a","an","is","are","to","of","and"
-    ]);
-
-    if (stop.has(w)) return null;
-    if (w.length < 3) return null;
-
+    const stop = new Set(["my","new","idea","system","about","the","a","is","are","to","of","and"]);
+    if (stop.has(w) || w.length < 3) return null;
     return w;
 }
 
-// =========================
-// MAP WORD -> NODE
-// =========================
-function mapConcept(w) {
+function map(w) {
     if (w.includes("logic") || w.includes("reason") || w.includes("crypt")) return "Logic";
     if (w.includes("compress") || w.includes("optimize")) return "Compression";
     if (w.includes("memory") || w.includes("remember")) return "Memory";
     return null;
 }
 
-// =========================
-// INHIBITION (competition)
-// =========================
-function inhibit(activeNodes) {
-    for (let a of activeNodes) {
-        for (let b of activeNodes) {
-            if (a !== b) {
-                nodes[b].e -= 0.15; // suppression
+// ======================
+// FIELD DYNAMICS
+// ======================
+function step(active) {
+
+    // spread
+    for (let n of active) {
+        nodes[n].e += 1 * nodes[n].bias;
+    }
+
+    // competition (inhibition)
+    for (let a of active) {
+        for (let b of active) {
+            if (a !== b) nodes[b].e -= 0.2;
+        }
+    }
+
+    // leakage
+    for (let n in nodes) {
+        nodes[n].e *= 0.97;
+    }
+}
+
+// ======================
+// STABILITY CHECK
+// ======================
+function stability() {
+    let sum = 0;
+    let count = 0;
+
+    for (let n in nodes) {
+        sum += Math.abs(nodes[n].e);
+        count++;
+    }
+
+    return sum / count;
+}
+
+// ======================
+// MORPHOGENESIS (controlled)
+// ======================
+function morph() {
+    let keys = Object.keys(nodes);
+
+    for (let i = 0; i < keys.length; i++) {
+        for (let j = i + 1; j < keys.length; j++) {
+
+            let a = keys[i];
+            let b = keys[j];
+
+            if (nodes[a].e > 1.5 && nodes[b].e > 1.5) {
+                nodes[a].bias += 0.01;
+                nodes[b].bias += 0.01;
             }
         }
     }
 }
 
-// =========================
-// ENERGY SPREAD
-// =========================
-function spread(activeNodes) {
-    for (let n of activeNodes) {
-        nodes[n].e += 1.0 * nodes[n].bias;
+// ======================
+// READOUT LAYER
+// ======================
+function readout(active, mode) {
 
-        // leakage
-        nodes[n].e *= 0.98;
+    let sorted = Object.keys(nodes)
+        .sort((a,b) => nodes[b].e - nodes[a].e);
+
+    let top = sorted.slice(0, 2);
+
+    if (mode === "surface") {
+        return `Focus: ${top[0]}`;
     }
+
+    if (mode === "deep") {
+        return `System reasoning based on ${top.join(" and ")}, forming structured interpretation.`;
+    }
+
+    return `Hybrid state: ${top.join(", ")}`;
 }
 
-// =========================
-// STABILIZATION STEP
-// =========================
-function stabilize() {
-    for (let n in nodes) {
-        if (nodes[n].e < 0) nodes[n].e = 0;
-        if (nodes[n].e > 3) nodes[n].e = 3;
-
-        // bias adapts slightly
-        nodes[n].bias += (nodes[n].e > 1 ? 0.01 : -0.005);
-
-        if (nodes[n].bias < 0.2) nodes[n].bias = 0.2;
-        if (nodes[n].bias > 2.0) nodes[n].bias = 2.0;
-    }
+// ======================
+// MODE CONTROLLER
+// ======================
+function decideMode(stab) {
+    if (stab < 0.5) return "surface";
+    if (stab > 1.2) return "deep";
+    return "hybrid";
 }
 
-// =========================
-// RUN FIELD DYNAMICS
-// =========================
+// ======================
+// MAIN RUN
+// ======================
 function run() {
 
     let text = document.getElementById("query").value;
     let words = text.split(" ");
 
-    let concepts = [];
+    let active = [];
 
     for (let w of words) {
         let c = clean(w);
         if (!c) continue;
-
-        let mapped = mapConcept(c);
-        if (mapped && !concepts.includes(mapped)) {
-            concepts.push(mapped);
-        }
+        let m = map(c);
+        if (m && !active.includes(m)) active.push(m);
     }
 
-    if (concepts.length === 0) concepts = ["Memory"];
+    if (active.length === 0) active = ["Memory"];
 
-    // reset field slightly (NOT full reset)
-    for (let n in nodes) {
-        nodes[n].e *= 0.6;
+    // run 4 cycles (thinking loop)
+    for (let i = 0; i < 4; i++) {
+        step(active);
+        morph();
     }
 
-    // 1. spread activation
-    spread(concepts);
+    let stab = stability();
+    let mode = decideMode(stab);
 
-    // 2. competition
-    inhibit(concepts);
+    history.push({ text, active, mode });
 
-    // 3. stabilization
-    stabilize();
-
-    history.push({ text, concepts });
-
-    render(concepts);
+    render(active, mode);
     draw();
 }
 
-// =========================
-// RENDER FIELD
-// =========================
-function render(concepts) {
+// ======================
+// RENDER
+// ======================
+function render(active, mode) {
 
     let box = document.getElementById("cells");
     let html = "";
 
     for (let n in nodes) {
 
-        let e = nodes[n].e;
-
-        if (e < 0.2) continue;
-
         html += `
-        <div class="cell" style="
-            background: rgba(0,255,200,${e / 3});
-            transform: scale(${1 + e * 0.1});
-        ">
+        <div class="cell" style="opacity:${Math.min(1, nodes[n].e)}">
             <div class="title">${n}</div>
             <div class="small">
-                energy: ${e.toFixed(2)}<br>
+                energy: ${nodes[n].e.toFixed(2)}<br>
                 bias: ${nodes[n].bias.toFixed(2)}
             </div>
         </div>
@@ -243,39 +260,39 @@ function render(concepts) {
     }
 
     document.getElementById("output").innerHTML =
-        "ACTIVE CONCEPTS: " + concepts.join(", ") +
-        "<br>HISTORY: " + history.length;
+        readout(active, mode) +
+        "<br>mode: " + mode +
+        "<br>history: " + history.length;
+
+    box.innerHTML = html;
 }
 
-// =========================
-// DRAW FIELD
-// =========================
+// ======================
+// DRAW
+// ======================
 function draw() {
-    const canvas = document.getElementById("graphCanvas");
-    const ctx = canvas.getContext("2d");
+    const c = document.getElementById("graphCanvas");
+    const ctx = c.getContext("2d");
 
-    ctx.clearRect(0,0,800,300);
+    ctx.clearRect(0,0,800,280);
 
     let keys = Object.keys(nodes);
 
-    let cx = 400, cy = 150;
-    let r = 120;
+    let cx = 400, cy = 140, r = 100;
 
     keys.forEach((n,i)=>{
-        let angle = (i / keys.length) * Math.PI * 2;
+        let angle = (i/keys.length)*Math.PI*2;
 
         let x = cx + Math.cos(angle)*r;
         let y = cy + Math.sin(angle)*r;
 
-        let e = nodes[n].e;
-
         ctx.beginPath();
         ctx.fillStyle = "#00ffcc";
-        ctx.arc(x, y, 10 + e*5, 0, Math.PI*2);
+        ctx.arc(x, y, 10 + nodes[n].e*5, 0, Math.PI*2);
         ctx.fill();
 
         ctx.fillStyle = "white";
-        ctx.fillText(n, x + 10, y);
+        ctx.fillText(n, x+10, y);
     });
 }
 

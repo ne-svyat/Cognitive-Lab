@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Field v0.12.1</title>
+<title>Cognitive Field v0.13 — Dual Mind</title>
 
 <style>
 body {
@@ -15,7 +15,6 @@ body {
 #core {
     text-align: center;
     margin-top: 15px;
-    font-size: 18px;
     color: #00ffcc;
 }
 
@@ -73,10 +72,10 @@ button {
 
 <body>
 
-<div id="core">Cognitive Field v0.12.1 — Hybrid Thinking System</div>
+<div id="core">v0.13 — Dual Field Cognitive System</div>
 
 <div id="inputBox">
-    <input id="query" placeholder="Ask something..." />
+    <input id="query" placeholder="Try something..." />
     <button onclick="run()">Run</button>
 </div>
 
@@ -88,20 +87,20 @@ button {
 
 <script>
 
-// ======================
+// =========================
 // CORE NODES
-// ======================
+// =========================
 let nodes = {
-    Memory: { e: 0, bias: 1 },
-    Logic: { e: 0, bias: 1 },
-    Compression: { e: 0, bias: 1 }
+    Memory: { e: 0, bias: 1, val: 0.3 },
+    Logic: { e: 0, bias: 1, val: 0.5 },
+    Compression: { e: 0, bias: 1, val: 0.4 }
 };
 
 let history = [];
 
-// ======================
-// CLEAN + MAP
-// ======================
+// =========================
+// CLEAN
+// =========================
 function clean(w) {
     w = w.toLowerCase();
     const stop = new Set(["my","new","idea","system","about","the","a","is","are","to","of","and"]);
@@ -109,104 +108,108 @@ function clean(w) {
     return w;
 }
 
+// =========================
+// MAP
+// =========================
 function map(w) {
-    if (w.includes("logic") || w.includes("reason") || w.includes("crypt")) return "Logic";
+    if (w.includes("logic") || w.includes("reason")) return "Logic";
     if (w.includes("compress") || w.includes("optimize")) return "Compression";
     if (w.includes("memory") || w.includes("remember")) return "Memory";
     return null;
 }
 
-// ======================
-// FIELD DYNAMICS
-// ======================
-function step(active) {
-
-    // spread
+// =========================
+// FIELD A (GENERATOR)
+// =========================
+function generator(active) {
     for (let n of active) {
         nodes[n].e += 1 * nodes[n].bias;
-    }
 
-    // competition (inhibition)
+        // slight positive emotional drift
+        nodes[n].val += 0.01;
+    }
+}
+
+// =========================
+// FIELD B (CRITIC — STRONG)
+// =========================
+function critic(active) {
     for (let a of active) {
         for (let b of active) {
-            if (a !== b) nodes[b].e -= 0.2;
-        }
-    }
-
-    // leakage
-    for (let n in nodes) {
-        nodes[n].e *= 0.97;
-    }
-}
-
-// ======================
-// STABILITY CHECK
-// ======================
-function stability() {
-    let sum = 0;
-    let count = 0;
-
-    for (let n in nodes) {
-        sum += Math.abs(nodes[n].e);
-        count++;
-    }
-
-    return sum / count;
-}
-
-// ======================
-// MORPHOGENESIS (controlled)
-// ======================
-function morph() {
-    let keys = Object.keys(nodes);
-
-    for (let i = 0; i < keys.length; i++) {
-        for (let j = i + 1; j < keys.length; j++) {
-
-            let a = keys[i];
-            let b = keys[j];
-
-            if (nodes[a].e > 1.5 && nodes[b].e > 1.5) {
-                nodes[a].bias += 0.01;
-                nodes[b].bias += 0.01;
+            if (a !== b) {
+                nodes[b].e -= 0.35; // stronger suppression
+                nodes[b].val -= 0.02;
             }
         }
     }
+
+    // global pruning pressure
+    for (let n in nodes) {
+        if (nodes[n].e < 0.2) {
+            nodes[n].val -= 0.01;
+        }
+    }
 }
 
-// ======================
-// READOUT LAYER
-// ======================
-function readout(active, mode) {
+// =========================
+// VALENCE SYSTEM
+// =========================
+function valenceUpdate() {
+    for (let n in nodes) {
 
-    let sorted = Object.keys(nodes)
-        .sort((a,b) => nodes[b].e - nodes[a].e);
+        // clamp
+        if (nodes[n].val > 1) nodes[n].val = 1;
+        if (nodes[n].val < -1) nodes[n].val = -1;
 
-    let top = sorted.slice(0, 2);
-
-    if (mode === "surface") {
-        return `Focus: ${top[0]}`;
+        // valence affects survival
+        if (nodes[n].val < -0.5) {
+            nodes[n].e *= 0.9;
+        }
     }
-
-    if (mode === "deep") {
-        return `System reasoning based on ${top.join(" and ")}, forming structured interpretation.`;
-    }
-
-    return `Hybrid state: ${top.join(", ")}`;
 }
 
-// ======================
-// MODE CONTROLLER
-// ======================
-function decideMode(stab) {
-    if (stab < 0.5) return "surface";
-    if (stab > 1.2) return "deep";
+// =========================
+// LEAKAGE (time decay)
+// =========================
+function decay() {
+    for (let n in nodes) {
+        nodes[n].e *= 0.96;
+    }
+}
+
+// =========================
+// STABILITY
+// =========================
+function stability() {
+    let sum = 0;
+    for (let n in nodes) sum += Math.abs(nodes[n].e);
+    return sum / Object.keys(nodes).length;
+}
+
+// =========================
+// MODE (still hybrid but emergent)
+// =========================
+function mode(stab) {
+    if (stab < 0.4) return "surface";
+    if (stab > 1.1) return "deep";
     return "hybrid";
 }
 
-// ======================
-// MAIN RUN
-// ======================
+// =========================
+// READOUT
+// =========================
+function readout(active, m) {
+    let sorted = Object.keys(nodes).sort((a,b)=>nodes[b].e - nodes[a].e);
+    let top = sorted.slice(0,2);
+
+    if (m === "surface") return `Focus: ${top[0]}`;
+    if (m === "deep") return `Deep synthesis: ${top.join(" + ")}`;
+    return `Balanced thought: ${top.join(", ")}`;
+}
+
+// =========================
+// RUN LOOP
+// =========================
 function run() {
 
     let text = document.getElementById("query").value;
@@ -223,25 +226,27 @@ function run() {
 
     if (active.length === 0) active = ["Memory"];
 
-    // run 4 cycles (thinking loop)
-    for (let i = 0; i < 4; i++) {
-        step(active);
-        morph();
+    // THINKING LOOP (multiple cycles)
+    for (let i = 0; i < 5; i++) {
+        generator(active);
+        critic(active);
+        decay();
+        valenceUpdate();
     }
 
     let stab = stability();
-    let mode = decideMode(stab);
+    let m = mode(stab);
 
-    history.push({ text, active, mode });
+    history.push({ text, active, m });
 
-    render(active, mode);
+    render(active, m);
     draw();
 }
 
-// ======================
+// =========================
 // RENDER
-// ======================
-function render(active, mode) {
+// =========================
+function render(active, m) {
 
     let box = document.getElementById("cells");
     let html = "";
@@ -253,23 +258,23 @@ function render(active, mode) {
             <div class="title">${n}</div>
             <div class="small">
                 energy: ${nodes[n].e.toFixed(2)}<br>
-                bias: ${nodes[n].bias.toFixed(2)}
+                valence: ${nodes[n].val.toFixed(2)}
             </div>
         </div>
         `;
     }
 
     document.getElementById("output").innerHTML =
-        readout(active, mode) +
-        "<br>mode: " + mode +
+        readout(active, m) +
+        "<br>mode: " + m +
         "<br>history: " + history.length;
 
     box.innerHTML = html;
 }
 
-// ======================
+// =========================
 // DRAW
-// ======================
+// =========================
 function draw() {
     const c = document.getElementById("graphCanvas");
     const ctx = c.getContext("2d");
@@ -277,17 +282,15 @@ function draw() {
     ctx.clearRect(0,0,800,280);
 
     let keys = Object.keys(nodes);
-
     let cx = 400, cy = 140, r = 100;
 
     keys.forEach((n,i)=>{
         let angle = (i/keys.length)*Math.PI*2;
-
         let x = cx + Math.cos(angle)*r;
         let y = cy + Math.sin(angle)*r;
 
         ctx.beginPath();
-        ctx.fillStyle = "#00ffcc";
+        ctx.fillStyle = nodes[n].val > 0 ? "#00ffcc" : "#ff3366";
         ctx.arc(x, y, 10 + nodes[n].e*5, 0, Math.PI*2);
         ctx.fill();
 

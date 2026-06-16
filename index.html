@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Lab v0.9 — Memory Graph</title>
+<title>Cognitive Lab v0.10 — Clean Core</title>
 
 <style>
 body {
@@ -48,13 +48,12 @@ button {
 }
 
 .cell {
-    width: 180px;
-    min-height: 120px;
+    width: 200px;
+    min-height: 140px;
     background: #1c1c1c;
     border-radius: 12px;
     padding: 10px;
     border: 1px solid #333;
-    transition: 0.2s;
 }
 
 .title {
@@ -68,9 +67,6 @@ button {
     margin-top: 8px;
 }
 
-/* ========================= */
-/* GRAPH VISUALIZATION */
-/* ========================= */
 #graphCanvas {
     display: block;
     margin: 30px auto;
@@ -79,12 +75,11 @@ button {
     border-radius: 10px;
 }
 </style>
-
 </head>
 
 <body>
 
-<div id="core">CORE: Cognitive Memory Graph v0.9</div>
+<div id="core">CORE: Cognitive Memory Graph v0.10 CLEAN</div>
 
 <div id="inputBox">
     <input id="query" placeholder="Try: cryptography, memory, compression..." />
@@ -95,71 +90,104 @@ button {
 
 <div class="container" id="cells"></div>
 
-<div id="output" style="text-align:center; margin-top:20px;"></div>
+<div id="output" style="text-align:center;margin-top:20px;"></div>
 
 <script>
 
-// ===============================
-// GRAPH CORE
-// ===============================
+// =========================
+// GRAPH WITH NODE STATE
+// =========================
 let graph = {
-    Memory: { act: 0, links: { Logic: 0.6, Compression: 0.5 }, importance: 1 },
-    Logic: { act: 0, links: { Memory: 0.6, Compression: 0.5 }, importance: 1 },
-    Compression: { act: 0, links: { Memory: 0.5, Logic: 0.5 }, importance: 1 }
+    Memory: {
+        act: 0,
+        links: { Logic: 0.6, Compression: 0.5 },
+        energy: 0.5,
+        confidence: 1,
+        stability: 1
+    },
+    Logic: {
+        act: 0,
+        links: { Memory: 0.6, Compression: 0.5 },
+        energy: 0.5,
+        confidence: 1,
+        stability: 1
+    },
+    Compression: {
+        act: 0,
+        links: { Memory: 0.5, Logic: 0.5 },
+        energy: 0.5,
+        confidence: 1,
+        stability: 1
+    }
 };
 
-// ===============================
-// MEMORY LOG
-// ===============================
 let memory = [];
 
-// ===============================
-// CLEANER
-// ===============================
-const stopwords = new Set([
-    "my","new","idea","system","about","the","a","an","is","are","to","of","and"
-]);
-
-function normalize(w) {
+// =========================
+// CLEANING LAYER
+// =========================
+function cleanWord(w) {
     w = w.toLowerCase();
 
-    if (stopwords.has(w)) return null;
+    const stop = new Set([
+        "my","new","idea","system","about","the","a","an","is","are","to","of","and"
+    ]);
 
-    if (w.includes("logic") || w.includes("reason")) return "Logic";
+    if (stop.has(w)) return null;
+    if (w.length < 3) return null;
+    if (/[0-9]/.test(w)) return null;
+
+    return w;
+}
+
+// =========================
+// CONCEPT MAPPING (merge logic)
+// =========================
+function normalizeConcept(w) {
+    if (w.includes("logic") || w.includes("reason") || w.includes("crypt")) return "Logic";
     if (w.includes("compress") || w.includes("optimize")) return "Compression";
     if (w.includes("memory") || w.includes("remember")) return "Memory";
-
-    if (w.includes("crypt") || w.includes("encrypt") || w.includes("security")) return "Logic";
-
     return null;
 }
 
-// ===============================
-// RESET
-// ===============================
-function reset() {
+// =========================
+// STABILITY CHECK
+// =========================
+function isStable(node) {
+    return (
+        graph[node].confidence > 0.3 &&
+        graph[node].stability > 0.2
+    );
+}
+
+// =========================
+// RESET ACTIVITY
+// =========================
+function resetAct() {
     for (let n in graph) graph[n].act = 0;
 }
 
-// ===============================
-// SPREAD (activation)
-// ===============================
+// =========================
+// ACTIVATION SPREAD
+// =========================
 function spread(node, intensity, visited = new Set()) {
+    if (!graph[node]) return;
     if (intensity < 0.15) return;
     if (visited.has(node)) return;
 
     visited.add(node);
 
     graph[node].act = Math.max(graph[node].act, intensity);
+    graph[node].energy = Math.min(1, graph[node].energy + intensity * 0.1);
 
     for (let l in graph[node].links) {
         spread(l, intensity * graph[node].links[l], visited);
     }
 }
 
-// ===============================
-// LEARNING
-// ===============================
+// =========================
+// MERGE LINKS + LEARNING
+// =========================
 function learn(concepts) {
     for (let i = 0; i < concepts.length; i++) {
         for (let j = i + 1; j < concepts.length; j++) {
@@ -167,102 +195,125 @@ function learn(concepts) {
             let a = concepts[i];
             let b = concepts[j];
 
-            graph[a].links[b] = (graph[a].links[b] || 0.3) + 0.05;
-            graph[b].links[a] = (graph[b].links[a] || 0.3) + 0.05;
+            if (!graph[a].links[b]) graph[a].links[b] = 0.3;
+            if (!graph[b].links[a]) graph[b].links[a] = 0.3;
 
-            graph[a].importance += 0.02;
-            graph[b].importance += 0.02;
+            graph[a].links[b] += 0.05;
+            graph[b].links[a] += 0.05;
+
+            graph[a].confidence = Math.min(1, graph[a].confidence + 0.02);
+            graph[b].confidence = Math.min(1, graph[b].confidence + 0.02);
+
+            graph[a].stability = Math.min(1, graph[a].stability + 0.01);
+            graph[b].stability = Math.min(1, graph[b].stability + 0.01);
         }
     }
 }
 
-// ===============================
-// FORGETTING
-// ===============================
+// =========================
+// DECAY (forgetting)
+// =========================
 function decay() {
     for (let n in graph) {
-        for (let l in graph[n].links) {
-            graph[n].links[l] -= 0.01;
 
-            if (graph[n].links[l] < 0.2) {
+        graph[n].energy *= 0.99;
+        graph[n].stability *= 0.999;
+
+        for (let l in graph[n].links) {
+            graph[n].links[l] -= 0.005;
+
+            if (graph[n].links[l] < 0.15) {
                 delete graph[n].links[l];
             }
         }
 
-        // importance decay
-        graph[n].importance *= 0.999;
+        graph[n].confidence *= 0.999;
     }
 }
 
-// ===============================
-// AUTO CONCEPTS
-// ===============================
-function maybeCreate(text, concepts) {
-    if (text.length < 10) return;
-
-    let name = text.split(" ")[0];
-
-    if (!graph[name]) {
-        graph[name] = { act: 0, links: {}, importance: 0.5 };
-    }
-
-    for (let c of concepts) {
-        graph[name].links[c] = 0.3;
-        graph[c].links[name] = 0.3;
-    }
+// =========================
+// MERGE DUPLICATES
+// =========================
+function mergeConcept(c) {
+    let norm = normalizeConcept(c);
+    return norm || c;
 }
 
-// ===============================
-// ROUTER
-// ===============================
+// =========================
+// PIPELINE CORE (v0.10)
+// =========================
 function run() {
     let text = document.getElementById("query").value;
 
-    reset();
+    resetAct();
 
-    let words = text.split(" ");
+    let rawWords = text.split(" ");
+    let concepts = [];
 
-    let concepts = new Set();
+    // 1. CLEAN + MAP
+    for (let w of rawWords) {
+        let c = cleanWord(w);
+        if (!c) continue;
 
-    for (let w of words) {
-        let c = normalize(w);
-        if (c) concepts.add(c);
+        c = mergeConcept(c);
+
+        if (!concepts.includes(c)) concepts.push(c);
     }
 
-    if (concepts.size === 0) concepts.add("Memory");
+    if (concepts.length === 0) concepts = ["Memory"];
 
-    let arr = Array.from(concepts);
+    // 2. FILTER OUT WEAK NOISE
+    concepts = concepts.filter(c => {
+        if (!graph[c]) graph[c] = {
+            act: 0,
+            links: {},
+            energy: 0.4,
+            confidence: 0.5,
+            stability: 0.5
+        };
+        return true;
+    });
 
-    for (let c of arr) spread(c, 1);
+    // 3. SPREAD
+    for (let c of concepts) {
+        spread(c, 1);
+    }
 
-    learn(arr);
+    // 4. LEARN
+    learn(concepts);
+
+    // 5. DECAY
     decay();
-    maybeCreate(text, arr);
 
-    memory.push({ text, concepts: arr });
+    // 6. MEMORY LOG
+    memory.push({ text, concepts });
 
-    render(arr);
+    render(concepts);
     drawGraph();
 }
 
-// ===============================
-// RENDER NODES
-// ===============================
+// =========================
+// RENDER
+// =========================
 function render(concepts) {
     let box = document.getElementById("cells");
 
     let html = "";
 
     for (let n in graph) {
+
+        if (!isStable(n)) continue;
+
         html += `
         <div class="cell" style="
-            background: rgba(0,255,200,${graph[n].act * 0.4});
-            transform: scale(${1 + graph[n].act * 0.2});
+            background: rgba(0,255,200,${graph[n].act * 0.35});
         ">
             <div class="title">${n}</div>
             <div class="small">
                 act: ${graph[n].act.toFixed(2)}<br>
-                imp: ${graph[n].importance.toFixed(2)}<br>
+                energy: ${graph[n].energy.toFixed(2)}<br>
+                confidence: ${graph[n].confidence.toFixed(2)}<br>
+                stability: ${graph[n].stability.toFixed(2)}<br>
                 links: ${Object.keys(graph[n].links).join(", ") || "none"}
             </div>
         </div>
@@ -277,9 +328,9 @@ function render(concepts) {
         "<br>NODES: " + Object.keys(graph).length;
 }
 
-// ===============================
-// GRAPH VISUALIZATION (simple)
-// ===============================
+// =========================
+// GRAPH DRAW
+// =========================
 function drawGraph() {
     const canvas = document.getElementById("graphCanvas");
     const ctx = canvas.getContext("2d");
@@ -289,9 +340,8 @@ function drawGraph() {
     let nodes = Object.keys(graph);
     let pos = {};
 
-    // layout circle
-    let radius = 120;
     let cx = 400, cy = 150;
+    let radius = 120;
 
     nodes.forEach((n,i)=>{
         let angle = (i / nodes.length) * Math.PI * 2;
@@ -301,8 +351,7 @@ function drawGraph() {
         };
     });
 
-    // links
-    ctx.strokeStyle = "rgba(0,255,200,0.3)";
+    ctx.strokeStyle = "rgba(0,255,200,0.25)";
     for (let a in graph) {
         for (let b in graph[a].links) {
             if (pos[a] && pos[b]) {
@@ -314,11 +363,16 @@ function drawGraph() {
         }
     }
 
-    // nodes
     for (let n in pos) {
         ctx.beginPath();
         ctx.fillStyle = "#00ffcc";
-        ctx.arc(pos[n].x, pos[n].y, 10 + graph[n].act*5, 0, Math.PI*2);
+        ctx.arc(
+            pos[n].x,
+            pos[n].y,
+            8 + (graph[n].act || 0) * 5,
+            0,
+            Math.PI*2
+        );
         ctx.fill();
 
         ctx.fillStyle = "white";

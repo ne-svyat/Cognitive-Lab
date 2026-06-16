@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>Cognitive Field v0.13.1 FIX</title>
+<title>Cognitive Field v0.14 — Multi-Step Mind</title>
 
 <style>
 body {
@@ -72,7 +72,7 @@ button {
 
 <body>
 
-<div id="core">v0.13.1 — FIXED Cognitive Collapse System</div>
+<div id="core">v0.14 — Multi-Step Cognitive Mind</div>
 
 <div id="inputBox">
     <input id="query" placeholder="Try: memory logic compression..." />
@@ -99,7 +99,7 @@ let nodes = {
 let history = [];
 
 // =========================
-// CLEAN + MAP
+// MAP
 // =========================
 function map(w) {
     w = w.toLowerCase();
@@ -112,29 +112,85 @@ function map(w) {
 }
 
 // =========================
-// FIELD STEP
+// PHASE 1 — ASSUMPTION
 // =========================
-function step(active) {
+function phase1(active) {
+
+    let seed = active[0];
 
     for (let n of active) {
         nodes[n].e += 1;
-        nodes[n].val += 0.01;
-    }
 
-    // competition
-    for (let a of active) {
-        for (let b of active) {
-            if (a !== b) {
-                nodes[b].e -= 0.3;
-                nodes[b].val -= 0.01;
-            }
+        if (n === seed) {
+            nodes[n].val += 0.02;
         }
     }
 
-    // decay
-    for (let n in nodes) {
-        nodes[n].e *= 0.95;
+    return seed;
+}
+
+// =========================
+// PHASE 2 — CRITIC PASS
+// =========================
+function phase2(active) {
+
+    for (let a of active) {
+        for (let b of active) {
+            if (a !== b) {
+                nodes[b].e -= 0.4;
+                nodes[b].val -= 0.02;
+            }
+        }
     }
+}
+
+// =========================
+// PHASE 3 — REINFORCEMENT
+// =========================
+function phase3() {
+
+    for (let n in nodes) {
+
+        if (nodes[n].e > 1) {
+            nodes[n].e *= 1.1;
+            nodes[n].val += 0.03;
+        }
+    }
+}
+
+// =========================
+// DECISION
+// =========================
+function decide() {
+
+    let best = null;
+    let bestScore = -Infinity;
+
+    for (let n in nodes) {
+
+        let score = nodes[n].e + nodes[n].val * 0.5;
+
+        if (score > bestScore) {
+            bestScore = score;
+            best = n;
+        }
+    }
+
+    return best;
+}
+
+// =========================
+// COLLAPSE
+// =========================
+function collapse(winner) {
+
+    for (let n in nodes) {
+        if (n !== winner) {
+            nodes[n].e *= 0.5;
+        }
+    }
+
+    nodes[winner].e *= 1.2;
 }
 
 // =========================
@@ -147,63 +203,15 @@ function stability() {
 }
 
 // =========================
-// 🧠 DECISION LAYER (NEW)
-// =========================
-function decideWinner(active) {
-
-    let best = null;
-    let bestScore = -Infinity;
-
-    for (let n of active) {
-
-        let score =
-            nodes[n].e +
-            nodes[n].val * 0.5;
-
-        if (score > bestScore) {
-            bestScore = score;
-            best = n;
-        }
-    }
-
-    return best;
-}
-
-// =========================
-// 🧠 COLLAPSE (NEW)
-// =========================
-function collapse(winner) {
-
-    // weaken others
-    for (let n in nodes) {
-        if (n !== winner) {
-            nodes[n].e *= 0.6;
-        }
-    }
-
-    // reinforce winner
-    nodes[winner].e *= 1.2;
-    nodes[winner].val += 0.05;
-}
-
-// =========================
-// READOUT (FIXED)
+// READOUT
 // =========================
 function readout(winner) {
 
-    if (winner === "Memory") {
-        return "Answer: system relies on stored experience / memory pattern";
-    }
+    if (winner === "Memory") return "Answer: retrieval-based reasoning";
+    if (winner === "Logic") return "Answer: structured logical inference";
+    if (winner === "Compression") return "Answer: simplified model selection";
 
-    if (winner === "Logic") {
-        return "Answer: system selects structured logical interpretation";
-    }
-
-    if (winner === "Compression") {
-        return "Answer: system simplifies and reduces complexity";
-    }
-
-    return "Answer: unstable state";
+    return "Answer: unstable cognition";
 }
 
 // =========================
@@ -223,26 +231,25 @@ function run() {
 
     if (active.length === 0) active = ["Memory"];
 
-    // THINKING LOOP
-    for (let i = 0; i < 5; i++) {
-        step(active);
-    }
+    // 🧠 MULTI PHASE THINKING
+    let seed = phase1(active);
+    phase2(active);
+    phase3();
 
-    let stab = stability();
-    let winner = decideWinner(active);
+    let winner = decide();
 
     collapse(winner);
 
-    history.push({ text, winner });
+    history.push({ text, winner, seed });
 
-    render(winner, stab);
+    render(winner);
     draw();
 }
 
 // =========================
 // RENDER
 // =========================
-function render(winner, stab) {
+function render(winner) {
 
     let box = document.getElementById("cells");
 
